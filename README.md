@@ -119,3 +119,18 @@ class WeightedSoftmaxWithLossLayer : public LossLayer<Dtype> {
 ```
 
 （3）在src\caffe\layers文件夹中增加weighted_softmax_loss_layer.cpp和weighted_softmax_loss_layer.cu两个文件
+
+（4）在训练的prototxt文件中，按照下面方法使用（比如指定从0数起的第1类，权重加强，乘子为2.0）：
+```
+layer {
+  name: "loss"
+  type: "WeightedSoftmaxWithLoss"
+  bottom: "fc_end"
+  bottom: "label"
+  top: "loss"
+  softmax_param {
+    pos_cid: 1
+    pos_mult: 2.0
+  }
+}
+```
