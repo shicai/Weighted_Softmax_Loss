@@ -29,7 +29,14 @@ void WeightedSoftmaxWithLossLayer<Dtype>::LayerSetUp(
   if (has_ignore_label_) {
     ignore_label_ = this->layer_param_.loss_param().ignore_label();
   }
-  normalize_ = this->layer_param_.loss_param().normalize();
+  if (!this->layer_param_.loss_param().has_normalization() &&
+      this->layer_param_.loss_param().has_normalize()) {
+    normalization_ = this->layer_param_.loss_param().normalize() ?
+                     LossParameter_NormalizationMode_VALID :
+                     LossParameter_NormalizationMode_BATCH_SIZE;
+  } else {
+    normalization_ = this->layer_param_.loss_param().normalization();
+  }
 }
 
 template <typename Dtype>
@@ -52,6 +59,36 @@ void WeightedSoftmaxWithLossLayer<Dtype>::Reshape(
     // softmax output
     top[1]->ReshapeLike(*bottom[0]);
   }
+}
+
+template <typename Dtype>
+Dtype WeightedSoftmaxWithLossLayer<Dtype>::get_normalizer(
+    LossParameter_NormalizationMode normalization_mode, int valid_count) {
+  Dtype normalizer;
+  switch (normalization_mode) {
+    case LossParameter_NormalizationMode_FULL:
+      normalizer = Dtype(outer_num_ * inner_num_);
+      break;
+    case LossParameter_NormalizationMode_VALID:
+      if (valid_count == -1) {
+        normalizer = Dtype(outer_num_ * inner_num_);
+      } else {
+        normalizer = Dtype(valid_count);
+      }
+      break;
+    case LossParameter_NormalizationMode_BATCH_SIZE:
+      normalizer = Dtype(outer_num_);
+      break;
+    case LossParameter_NormalizationMode_NONE:
+      normalizer = Dtype(1);
+      break;
+    default:
+      LOG(FATAL) << "Unknown normalization mode: "
+          << LossParameter_NormalizationMode_Name(normalization_mode);
+  }
+  // Some users will have no labels for some examples in order to 'turn off' a
+  // particular loss in a multi-task setup. The max prevents NaNs in that case.
+  return std::max(Dtype(1.0), normalizer);
 }
 
 template <typename Dtype>
@@ -81,11 +118,7 @@ void WeightedSoftmaxWithLossLayer<Dtype>::Forward_cpu(
       ++count;
     }
   }
-  if (normalize_) {
-    top[0]->mutable_cpu_data()[0] = loss / count;
-  } else {
-    top[0]->mutable_cpu_data()[0] = loss / outer_num_;
-  }
+  top[0]->mutable_cpu_data()[0] = loss / get_normalizer(normalization_, count);
   if (top.size() == 2) {
     top[1]->ShareData(prob_);
   }
@@ -125,12 +158,9 @@ void WeightedSoftmaxWithLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*
       }
     }
     // Scale gradient
-    const Dtype loss_weight = top[0]->cpu_diff()[0];
-    if (normalize_) {
-      caffe_scal(prob_.count(), loss_weight / count, bottom_diff);
-    } else {
-      caffe_scal(prob_.count(), loss_weight / outer_num_, bottom_diff);
-    }
+    Dtype loss_weight = top[0]->cpu_diff()[0] /
+                        get_normalizer(normalization_, count);
+    caffe_scal(prob_.count(), loss_weight, bottom_diff);
   }
 }
 
