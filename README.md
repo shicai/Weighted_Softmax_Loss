@@ -1,7 +1,7 @@
 # Weighted_Softmax_Loss
 Weighted Softmax Loss Layer for Caffe
 
-Tested on BVLC/caffe 1.0 and NVIDIA/caffe 0.15.
+Tested on NVIDIA/caffe 0.15, should work in BVLC/caffe 1.0.
 
 ## Installation:
 
