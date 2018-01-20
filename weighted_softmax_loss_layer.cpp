@@ -117,7 +117,7 @@ void WeightedSoftmaxWithLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*
         } else {
           bottom_diff[i * dim + label_value * inner_num_ + j] -= 1;
           Dtype w = (label_value == pos_cid_) ? pos_mult_ : 1;
-          for (int k = 0; k < dim; ++k) {
+          for (int k = 0; k < bottom[0]->shape(softmax_axis_); ++k) {
             bottom_diff[i * dim + k * inner_num_ + j] *= w;
           }
           ++count;
