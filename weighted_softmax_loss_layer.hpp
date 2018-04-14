@@ -1,31 +1,3 @@
-# Weighted_Softmax_Loss
-Weighted Softmax Loss Layer for Caffe
-
-Usage:
-
-（1）caffe.proto文件修改以下部分，增加`pos_mult`（指定某类的权重乘子）和`pos_cid`（指定的某类的类别编号）两个参数：
-
-```
-// Message that stores parameters used by SoftmaxLayer, SoftmaxWithLossLayer
-message SoftmaxParameter {
-  enum Engine {
-    DEFAULT = 0;
-    CAFFE = 1;
-    CUDNN = 2;
-  }
-  optional Engine engine = 1 [default = DEFAULT];
-
-  // The axis along which to perform the softmax -- may be negative to index
-  // from the end (e.g., -1 for the last axis).
-  // Any other axes will be evaluated as independent softmaxes.
-  optional int32 axis = 2 [default = 1];
-  optional float pos_mult = 3 [default = 1];
-  optional int32 pos_cid = 4 [default = 1];
-}
-```
-
-（2）新建`include/caffe/layer/weighted_softmax_loss_layer.hpp`，内容为：
-```C++
 #ifndef CAFFE_WEIGHTED_SOFTMAX_WITH_LOSS_LAYER_HPP_
 #define CAFFE_WEIGHTED_SOFTMAX_WITH_LOSS_LAYER_HPP_
 
@@ -66,8 +38,9 @@ namespace caffe {
  * @param top output Blob vector (length 1)
  *   -# @f$ (1 \times 1 \times 1 \times 1) @f$
  *      the computed cross-entropy classification loss: @f$ E =
- *        \frac{-{w_{cid}}}{N} \sum\limits_{n=1}^N \log(\hat{p}_{n,l_n})
- *      @f$, for softmax output class probabilites @f$ \hat{p} @f$
+ *        \frac{-1}{N} \sum\limits_{n=1}^N {w_n} \log(\hat{p}_{n,l_n})
+ *      @f$, for softmax output class probabilites @f$ \hat{p} @f$,
+ *      and @f$ {w_n}=mult if {n}=cid, else {w_n}=1 @f$. By default, cid=1, mult=1
  */
 template <typename Dtype>
 class WeightedSoftmaxWithLossLayer : public LossLayer<Dtype> {
@@ -165,21 +138,3 @@ class WeightedSoftmaxWithLossLayer : public LossLayer<Dtype> {
 }  // namespace caffe
 
 #endif  // CAFFE_WEIGHTED_SOFTMAX_WITH_LOSS_LAYER_HPP_
-```
-
-（3）在`src/caffe/layers`文件夹中增加`weighted_softmax_loss_layer.cpp`和`weighted_softmax_loss_layer.cu`两个文件
-
-（4）在训练的prototxt文件中，按照下面方法使用（比如指定从0数起的第1类，权重加强，乘子为2.0）：
-```prototxt
-layer {
-  name: "loss"
-  type: "WeightedSoftmaxWithLoss"
-  bottom: "fc_end"
-  bottom: "label"
-  top: "loss"
-  softmax_param {
-    pos_cid: 1
-    pos_mult: 2.0
-  }
-}
-```
